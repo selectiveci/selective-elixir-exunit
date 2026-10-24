@@ -1,0 +1,11 @@
+/_build/
+/cover/
+/deps/
+/*.ez
+/erl_crash.dump
+/tmp/
+.elixir_ls/
+examples/internal/_build/
+examples/internal/deps/
+examples/internal/tmp/
+examples/internal/erl_crash.dump

@@ -1,0 +1,87 @@
+name: test
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { elixir: "1.17.3", otp: "27.3" }
+          - { elixir: "1.18.5", otp: "27.3" }
+          - { elixir: "1.19.5", otp: "27.3" }
+          - { elixir: "1.20.4", otp: "27.3" }
+          - { elixir: "1.19.5", otp: "28" }
+          - { elixir: "1.20.4", otp: "28" }
+          - { elixir: "1.20.4", otp: "29" }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ matrix.elixir }}
+          otp-version: ${{ matrix.otp }}
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build transport and transport-conformance
+        run: |
+          CARGO_TARGET_DIR="$RUNNER_TEMP/target-44a9c7a" cargo install --locked \
+            --git https://github.com/selectiveci/transport --rev 44a9c7abde5a35d869c5f71780d56e26c0c6f8bd \
+            --bin transport --bin transport-conformance --root "$RUNNER_TEMP/transport"
+      - name: Run tests
+        env:
+          SELECTIVE_CONFORMANCE_FAST: "1"
+        run: SELECTIVE_TRANSPORT="$RUNNER_TEMP/transport/bin/transport" mix test
+      - name: Run the transport conformance suite
+        if: matrix.elixir == '1.19.5' && matrix.otp == '28'
+        env:
+          MIX_ENV: test
+        run: |
+          (cd examples/internal && mix compile)
+          env -u GITHUB_ACTIONS TRANSPORT_CONFORMANCE="$RUNNER_TEMP/transport/bin/transport-conformance" \
+            SELECTIVE_TRANSPORT="$RUNNER_TEMP/transport/bin/transport" script/conformance.sh
+  glibc-2-36:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build transport on the runner's newer glibc
+        run: |
+          CARGO_TARGET_DIR="$RUNNER_TEMP/target-44a9c7a" cargo install --locked \
+            --git https://github.com/selectiveci/transport --rev 44a9c7abde5a35d869c5f71780d56e26c0c6f8bd \
+            --bin transport --bin transport-conformance --root "$RUNNER_TEMP/transport"
+      - name: Run tests on Debian bookworm (glibc 2.36)
+        run: |
+          docker run --rm -v "$PWD:/w" -w /w \
+            -v "$RUNNER_TEMP/transport/bin/transport":/opt/transport:ro \
+            -e SELECTIVE_TRANSPORT=/opt/transport -e SELECTIVE_CONFORMANCE_FAST=1 \
+            elixir:1.18.4-otp-27 sh -ec '
+              /opt/transport --help 2>&1 | grep "weak version"
+              git config --global --add safe.directory "*"
+              mix test'
+  otp-26:
+    runs-on: ubuntu-latest
+    container: elixir:1.17.3-otp-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Without Selective configured, mix selective.test is mix test
+        working-directory: examples/internal
+        env:
+          MIX_ENV: test
+        run: env -u GITHUB_ACTIONS mix selective.test test/case_pass_test.exs
+      - name: With Selective configured, it exits 1 with the OTP floor message
+        working-directory: examples/internal
+        env:
+          MIX_ENV: test
+          SELECTIVE_API_KEY: k
+        run: |
+          set +e
+          mix selective.test > out.txt 2>&1
+          status=$?
+          cat out.txt
+          test "$status" = 1 && grep -qx "selective_exunit requires Erlang/OTP 27 or later (this is OTP 26)" out.txt
