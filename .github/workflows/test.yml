@@ -4,6 +4,16 @@ on:
   push:
     branches: [main]
 jobs:
+  dead-code:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.18.4"
+          otp-version: "27"
+      - name: Dead code and later-slice upload
+        run: mix selective.dead_code
   test:
     runs-on: ubuntu-latest
     strategy:

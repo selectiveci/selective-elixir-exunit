@@ -57,10 +57,6 @@ defmodule SelectiveExunit.Results do
     end)
   end
 
-  def emitted?(id) do
-    Agent.get(__MODULE__, fn state -> Map.has_key?(state.results, id) end)
-  end
-
   def remove_failed(id) do
     Agent.update(__MODULE__, fn state ->
       case Map.get(state.results, id) do
