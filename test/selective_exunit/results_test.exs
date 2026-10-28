@@ -21,12 +21,12 @@ defmodule SelectiveExunit.ResultsTest do
     Results.begin_attempt("id")
     Results.put("id", "failed", %{}, 1)
     Results.remove_failed("id")
-    refute Results.emitted?("id")
+    assert Results.stats().total == 0
 
     Results.begin_attempt("id")
     Results.put("id", "failed", %{}, 2)
     Results.remove_failed("id")
-    refute Results.emitted?("id")
+    assert Results.stats().total == 0
     assert Results.framework_status() == 0
   end
 
@@ -34,14 +34,14 @@ defmodule SelectiveExunit.ResultsTest do
     Results.begin_attempt("id")
     Results.put("id", "passed", %{}, 1)
     Results.remove_failed("id")
-    assert Results.emitted?("id")
+    assert Results.stats() == %{total: 1, failures: 0, skipped: 0, excluded: 0}
   end
 
   test "begin_attempt drops the previous result" do
     Results.begin_attempt("id")
     Results.put("id", "failed", %{}, 1)
     Results.begin_attempt("id")
-    refute Results.emitted?("id")
+    assert Results.stats().total == 0
     assert Results.framework_status() == 0
   end
 
