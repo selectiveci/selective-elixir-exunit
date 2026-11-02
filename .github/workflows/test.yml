@@ -28,8 +28,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Build transport and transport-conformance
         run: |
-          CARGO_TARGET_DIR="$RUNNER_TEMP/target-44a9c7a" cargo install --locked \
-            --git https://github.com/selectiveci/transport --rev 44a9c7abde5a35d869c5f71780d56e26c0c6f8bd \
+          CARGO_TARGET_DIR="$RUNNER_TEMP/target-v0.2.0" cargo install --locked \
+            --git https://github.com/selectiveci/transport --tag v0.2.0 \
             --bin transport --bin transport-conformance --root "$RUNNER_TEMP/transport"
       - name: Run tests
         env:
@@ -52,8 +52,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Build transport on the runner's newer glibc
         run: |
-          CARGO_TARGET_DIR="$RUNNER_TEMP/target-44a9c7a" cargo install --locked \
-            --git https://github.com/selectiveci/transport --rev 44a9c7abde5a35d869c5f71780d56e26c0c6f8bd \
+          CARGO_TARGET_DIR="$RUNNER_TEMP/target-v0.2.0" cargo install --locked \
+            --git https://github.com/selectiveci/transport --tag v0.2.0 \
             --bin transport --bin transport-conformance --root "$RUNNER_TEMP/transport"
       - name: Run tests on Debian bookworm (glibc 2.36)
         run: |
