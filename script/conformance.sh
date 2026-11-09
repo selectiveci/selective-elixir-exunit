@@ -14,6 +14,8 @@ for scenario in $("$conformance" list); do
     echo "$output" | grep -E "^(ok|n/a) "
   elif echo "$output" | grep -q "^$scenario client: $scenario: exit exit status: 2, expected 1$"; then
     echo "exit-2 $scenario: mix test's failure status; the scenario expects 1"
+  elif echo "$output" | grep -qx "no conformance scenarios ran for --scenario $scenario"; then
+    echo "$output" | grep -E "^n/a "
   else
     echo "$output"
     status=1
