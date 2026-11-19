@@ -4,7 +4,7 @@ Selective client for ExUnit. `mix selective.test` loads the suite once, then run
 
 ## Run
 
-On first use, `mix selective.test` downloads the pinned [transport](https://github.com/selectiveci/transport) release asset for this host (the static Linux binary, or macOS), checks its sha256, and keeps it under `_build/`. `SELECTIVE_TRANSPORT` points at a binary instead. The pinned release is `v0.2.0`.
+On first use, `mix selective.test` downloads the pinned [transport](https://github.com/selectiveci/transport) release asset for this host (the static Linux binary, or macOS), checks its sha256, and keeps it under `_build/`. `SELECTIVE_TRANSPORT` points at a binary instead. The pinned release is `v0.3.0`.
 
 On CI, `mix selective.test` replaces `mix test`. It runs the project's `test` alias steps first (Phoenix's `ecto.create` and `ecto.migrate`) and applies `mix test`'s selection, run and build flags: paths, `file:line`, `--include`, `--exclude`, `--only`, `--name-pattern`, `--failed`, `--seed`, `--timeout`, `--trace`, `--exit-status`, `--color`, `--formatter`, `--slowest`, `--warnings-as-errors`, `--no-compile`, `--no-start` and the other compile checks. A failure exits 2, like `mix test`. A `mix test` flag it cannot honor (`--cover`, `--stale`, `--partitions`, `--max-cases`, `--max-failures`, `--repeat-until-failure`, `--raise`, and the interactive ones) exits 1 naming the flag. The host project selects the test env:
 

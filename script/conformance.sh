@@ -7,15 +7,13 @@ flake=$(mktemp)
 status=0
 for scenario in $("$conformance" list); do
   rm -f "$flake"
-  output=$(SELECTIVE_FLAKE_FILE=$flake "$conformance" run --scenario "$scenario" \
+  output=$(SELECTIVE_FLAKE_FILE=$flake "$conformance" run --scenario "$scenario" --require-features manifest_http \
     --client "mix selective.test test/conformance_test.exs --include conformance" \
     --fixture-ids conformance-ids.json --transport "$transport" 2>&1)
   if [ $? = 0 ]; then
     echo "$output" | grep -E "^(ok|n/a) "
   elif echo "$output" | grep -q "^$scenario client: $scenario: exit exit status: 2, expected 1$"; then
     echo "exit-2 $scenario: mix test's failure status; the scenario expects 1"
-  elif echo "$output" | grep -qx "no conformance scenarios ran for --scenario $scenario"; then
-    echo "$output" | grep -E "^n/a "
   else
     echo "$output"
     status=1

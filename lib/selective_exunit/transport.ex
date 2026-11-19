@@ -1,15 +1,15 @@
 defmodule SelectiveExunit.Transport do
-  @release "v0.2.0"
+  @release "v0.3.0"
   @base_url "https://github.com/selectiveci/transport/releases/download"
   @checksums %{
     "transport-Linux-x86_64.tar.gz" =>
-      "87b2d6847ed0efa44c73ec16526b85134bf6f2e3759d99f925682eaf1b27d937",
+      "9a14ceee175a821977aedc69bfcbd9610ff369368a66274bdb64dbb5176bdc8d",
     "transport-Linux-aarch64.tar.gz" =>
-      "cf54fbf596b8a708fbc64e031f98737f076b8c32c371a4506c8141c49bca84be",
+      "7ff36a36c78347de37154f6eb461f425b9c7f87b5387d0288162092c6f54090c",
     "transport-Darwin-x86_64.tar.gz" =>
-      "ccb9f795086d5584ff605cff8aefc534a82cde3154a3231f7f9396cde27bf7d4",
+      "5f491c35d150e6594b4a81070060600af6721a1b558e0cdd2c47712027bb7ed2",
     "transport-Darwin-aarch64.tar.gz" =>
-      "7dcaec969378a181a62749673b9c0b658be17bf16a8880f5effbd8e03a6c4a17"
+      "dc5e7fff627041d304ab88aabb21bbdb167a56a21d71c38b2850fc52d6cccd3c"
   }
 
   def find do
