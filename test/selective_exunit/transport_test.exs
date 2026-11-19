@@ -21,7 +21,7 @@ defmodule SelectiveExunit.TransportTest do
     assert path ==
              Path.join([
                Path.dirname(Mix.Project.build_path()),
-               "selective_transport-v0.2.0",
+               "selective_transport-v0.3.0",
                "transport"
              ])
 
