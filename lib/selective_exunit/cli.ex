@@ -48,10 +48,12 @@ defmodule SelectiveExunit.CLI do
         abort(message)
 
       {opts, files} ->
-        case prepare(test_alias, opts, files, args) do
-          {:ok, env, cases} -> Session.run(env, cases, opts)
-          {:error, message} -> abort(message)
-        end
+        Discovery.with_test_compiler_options(Mix.Project.config(), fn ->
+          case prepare(test_alias, opts, files, args) do
+            {:ok, env, cases} -> Session.run(env, cases, opts)
+            {:error, message} -> abort(message)
+          end
+        end)
     end
   end
 

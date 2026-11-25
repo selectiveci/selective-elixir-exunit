@@ -145,20 +145,38 @@ defmodule SelectiveExunit.Discovery do
   def require_test_files(files, project, opts) do
     previous = Code.compiler_options(test_elixirc_options(project))
 
-    try do
-      case Kernel.ParallelCompiler.require(files, return_diagnostics: true) do
-        {:ok, modules, warnings} ->
-          if opts[:warnings_as_errors] && warned?(warnings) do
-            {:error, "test files compiled with warnings and --warnings-as-errors is set"}
-          else
-            {:ok, modules}
-          end
+    case compile_test_files(files, opts) do
+      {:ok, _modules} = ok ->
+        ok
 
-        {:error, errors, _warnings} ->
-          {:error, format_errors(errors)}
-      end
+      error ->
+        Code.compiler_options(previous)
+        error
+    end
+  end
+
+  def with_test_compiler_options(project, fun) do
+    keys = Keyword.keys(test_elixirc_options(project))
+    saved = for key <- keys, do: {key, Code.get_compiler_option(key)}
+
+    try do
+      fun.()
     after
-      Code.compiler_options(previous)
+      Code.compiler_options(saved)
+    end
+  end
+
+  defp compile_test_files(files, opts) do
+    case Kernel.ParallelCompiler.require(files, return_diagnostics: true) do
+      {:ok, modules, warnings} ->
+        if opts[:warnings_as_errors] && warned?(warnings) do
+          {:error, "test files compiled with warnings and --warnings-as-errors is set"}
+        else
+          {:ok, modules}
+        end
+
+      {:error, errors, _warnings} ->
+        {:error, format_errors(errors)}
     end
   end
 

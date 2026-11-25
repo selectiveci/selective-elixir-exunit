@@ -41,6 +41,35 @@ defmodule SelectiveExunit.SessionTest do
     assert Drive.lines(session, "after") == 1
   end
 
+  test "tests run under the compiler options mix test holds for the whole run", %{
+    session: session
+  } do
+    probe = "probes/compiler_options_test.exs"
+    selective_file = Drive.path(session, "compiler_options")
+    mix_test_file = Drive.path(session, "compiler_options_mix_test")
+
+    {child, ws, _request} =
+      Drive.connect(session, [probe], %{"SELECTIVE_COMPILER_OPTIONS_FILE" => selective_file})
+
+    [test_case] = Drive.manifest(ws)["test_cases"]
+    assert [%{"data" => %{"status" => "passed"}}] = Drive.run_ids(ws, [test_case["id"]])
+    Drive.close(ws, nil)
+    {_output, 0} = Child.await(child)
+
+    {_output, 0} =
+      System.cmd("mix", ["test", probe],
+        cd: Path.expand("examples/internal"),
+        env: [{"MIX_ENV", "test"}, {"SELECTIVE_COMPILER_OPTIONS_FILE", mix_test_file}],
+        stderr_to_stdout: true
+      )
+
+    seen = File.read!(selective_file)
+    assert seen == File.read!(mix_test_file)
+    {options, _binding} = Code.eval_string(seen)
+    assert options[:docs] == false
+    assert options[:debug_info] == false
+  end
+
   test "group hooks count every assigned test across two batches", %{session: session} do
     {child, ws, _request} = Drive.connect(session)
     cases = Drive.manifest(ws)["test_cases"]
