@@ -75,7 +75,7 @@ defmodule SelectiveExunit.RecorderTest do
     dir =
       Path.join(
         System.tmp_dir!(),
-        "selective-exunit-recorder-#{System.unique_integer([:positive])}"
+        "selective-exunit-recorder-#{System.pid()}-#{System.unique_integer([:positive])}"
       )
 
     File.mkdir_p!(dir)
