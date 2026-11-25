@@ -140,10 +140,10 @@ defmodule SelectiveExunit.Discovery do
     String.ends_with?(path, ".exs") and not String.ends_with?(path, "_helper.exs")
   end
 
-  defp require_test_files([], _project, _opts), do: {:ok, []}
+  def require_test_files([], _project, _opts), do: {:ok, []}
 
-  defp require_test_files(files, project, opts) do
-    previous = Code.compiler_options(project[:test_elixirc_options] || [])
+  def require_test_files(files, project, opts) do
+    previous = Code.compiler_options(test_elixirc_options(project))
 
     try do
       case Kernel.ParallelCompiler.require(files, return_diagnostics: true) do
@@ -159,6 +159,18 @@ defmodule SelectiveExunit.Discovery do
       end
     after
       Code.compiler_options(previous)
+    end
+  end
+
+  defp test_elixirc_options(project) do
+    Keyword.merge(default_elixirc_options(), project[:test_elixirc_options] || [])
+  end
+
+  defp default_elixirc_options do
+    if Version.match?(System.version(), ">= 1.18.0") do
+      [docs: false, debug_info: false, infer_signatures: false]
+    else
+      [docs: false, debug_info: false]
     end
   end
 
