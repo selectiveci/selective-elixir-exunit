@@ -24,18 +24,30 @@ defmodule SelectiveExunit.Transport do
     end
   end
 
-  defp installed do
-    path =
-      Path.join([
-        Path.dirname(Mix.Project.build_path()),
-        "selective_transport-#{@release}",
-        "transport"
-      ])
-
-    if File.regular?(path), do: {:ok, path}, else: install(path)
+  def install(opts \\ []) do
+    case System.get_env("SELECTIVE_TRANSPORT", "") do
+      "" -> install_pinned(Keyword.get(opts, :if_missing, false))
+      _ -> find()
+    end
   end
 
-  defp install(path) do
+  defp installed, do: install_pinned(true)
+
+  defp install_pinned(if_missing) do
+    path = pinned_path()
+
+    if if_missing and File.regular?(path), do: {:ok, path}, else: install_to(path)
+  end
+
+  defp pinned_path do
+    Path.join([
+      Path.dirname(Mix.Project.build_path()),
+      "selective_transport-#{@release}",
+      "transport"
+    ])
+  end
+
+  defp install_to(path) do
     with {:ok, asset} <- asset(),
          url = "#{@base_url}/#{@release}/#{asset}",
          {:ok, archive} <- download(url),
