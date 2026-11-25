@@ -10,8 +10,23 @@ defmodule Internal.MixProject do
         if(System.get_env("SELECTIVE_NO_DEBUG_INFO"), do: ["lib", "nodebug"], else: ["lib"]),
       start_permanent: false,
       deps: [{:selective_exunit, path: "../.."}],
-      aliases: [test: [&mark_alias/1, "test --exclude alias_excluded"]]
+      test_elixirc_options: test_elixirc_options(),
+      aliases: [
+        test: [&mark_alias/1, "test --exclude alias_excluded", &record_compiler_options/1]
+      ]
     ]
+  end
+
+  defp test_elixirc_options do
+    if System.get_env("SELECTIVE_BAD_COMPILER_OPTION"),
+      do: [not_a_compiler_option: true],
+      else: []
+  end
+
+  defp record_compiler_options(_args) do
+    if path = System.get_env("SELECTIVE_AFTER_OPTIONS_FILE") do
+      File.write!(path, inspect(Code.get_compiler_option(:debug_info)))
+    end
   end
 
   defp mark_alias(_args) do

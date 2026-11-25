@@ -140,25 +140,51 @@ defmodule SelectiveExunit.Discovery do
     String.ends_with?(path, ".exs") and not String.ends_with?(path, "_helper.exs")
   end
 
-  defp require_test_files([], _project, _opts), do: {:ok, []}
+  def require_test_files([], _project, _opts), do: {:ok, []}
 
-  defp require_test_files(files, project, opts) do
-    previous = Code.compiler_options(project[:test_elixirc_options] || [])
+  def require_test_files(files, project, opts) do
+    Code.compiler_options(test_elixirc_options(project))
+    compile_test_files(files, opts)
+  end
+
+  def with_test_compiler_options(project, fun) do
+    available = Code.available_compiler_options()
+
+    keys =
+      project |> test_elixirc_options() |> Keyword.keys() |> Enum.filter(&(&1 in available))
+
+    saved = for key <- keys, do: {key, Code.get_compiler_option(key)}
 
     try do
-      case Kernel.ParallelCompiler.require(files, return_diagnostics: true) do
-        {:ok, modules, warnings} ->
-          if opts[:warnings_as_errors] && warned?(warnings) do
-            {:error, "test files compiled with warnings and --warnings-as-errors is set"}
-          else
-            {:ok, modules}
-          end
-
-        {:error, errors, _warnings} ->
-          {:error, format_errors(errors)}
-      end
+      fun.()
     after
-      Code.compiler_options(previous)
+      Code.compiler_options(saved)
+    end
+  end
+
+  defp compile_test_files(files, opts) do
+    case Kernel.ParallelCompiler.require(files, return_diagnostics: true) do
+      {:ok, modules, warnings} ->
+        if opts[:warnings_as_errors] && warned?(warnings) do
+          {:error, "test files compiled with warnings and --warnings-as-errors is set"}
+        else
+          {:ok, modules}
+        end
+
+      {:error, errors, _warnings} ->
+        {:error, format_errors(errors)}
+    end
+  end
+
+  defp test_elixirc_options(project) do
+    Keyword.merge(default_elixirc_options(), project[:test_elixirc_options] || [])
+  end
+
+  defp default_elixirc_options do
+    if :infer_signatures in Code.available_compiler_options() do
+      [docs: false, debug_info: false, infer_signatures: false]
+    else
+      [docs: false, debug_info: false]
     end
   end
 

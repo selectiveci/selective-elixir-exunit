@@ -41,6 +41,56 @@ defmodule SelectiveExunit.SessionTest do
     assert Drive.lines(session, "after") == 1
   end
 
+  test "tests run under the compiler options mix test holds for the whole run", %{
+    session: session
+  } do
+    probe = "probes/compiler_options_test.exs"
+    selective_file = Drive.path(session, "compiler_options")
+    mix_test_file = Drive.path(session, "compiler_options_mix_test")
+    after_file = Drive.path(session, "after_options")
+
+    {child, ws, _request} =
+      Drive.connect(session, [probe], %{
+        "SELECTIVE_COMPILER_OPTIONS_FILE" => selective_file,
+        "SELECTIVE_AFTER_OPTIONS_FILE" => after_file
+      })
+
+    [test_case] = Drive.manifest(ws)["test_cases"]
+    assert [%{"data" => %{"status" => "passed"}}] = Drive.run_ids(ws, [test_case["id"]])
+    Drive.close(ws, nil)
+    {_output, 0} = Child.await(child)
+
+    {_output, 0} =
+      System.cmd("mix", ["test", probe],
+        cd: Path.expand("examples/internal"),
+        env: [{"MIX_ENV", "test"}, {"SELECTIVE_COMPILER_OPTIONS_FILE", mix_test_file}],
+        stderr_to_stdout: true
+      )
+
+    seen = File.read!(selective_file)
+    assert seen == File.read!(mix_test_file)
+    {options, _binding} = Code.eval_string(seen)
+    assert options[:docs] == false
+    assert options[:debug_info] == false
+    assert File.read!(after_file) == "true"
+  end
+
+  test "an unknown test_elixirc_options entry aborts cleanly and restores the options", %{
+    session: session
+  } do
+    after_file = Drive.path(session, "after_options")
+
+    child =
+      Drive.open(session, [], %{
+        "SELECTIVE_BAD_COMPILER_OPTION" => "1",
+        "SELECTIVE_AFTER_OPTIONS_FILE" => after_file
+      })
+
+    {output, 1} = Child.await(child)
+    assert output =~ "Selective could not start"
+    assert File.read!(after_file) == "true"
+  end
+
   test "group hooks count every assigned test across two batches", %{session: session} do
     {child, ws, _request} = Drive.connect(session)
     cases = Drive.manifest(ws)["test_cases"]
