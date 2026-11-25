@@ -143,20 +143,16 @@ defmodule SelectiveExunit.Discovery do
   def require_test_files([], _project, _opts), do: {:ok, []}
 
   def require_test_files(files, project, opts) do
-    previous = Code.compiler_options(test_elixirc_options(project))
-
-    case compile_test_files(files, opts) do
-      {:ok, _modules} = ok ->
-        ok
-
-      error ->
-        Code.compiler_options(previous)
-        error
-    end
+    Code.compiler_options(test_elixirc_options(project))
+    compile_test_files(files, opts)
   end
 
   def with_test_compiler_options(project, fun) do
-    keys = Keyword.keys(test_elixirc_options(project))
+    available = Code.available_compiler_options()
+
+    keys =
+      project |> test_elixirc_options() |> Keyword.keys() |> Enum.filter(&(&1 in available))
+
     saved = for key <- keys, do: {key, Code.get_compiler_option(key)}
 
     try do
