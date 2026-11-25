@@ -43,9 +43,9 @@ defmodule SelectiveExunit.Recorder do
       nil ->
         :ok
 
-      %{native: native, fallback: fallback} ->
+      %{native: native, fallback: fallback} = recording ->
         Enum.each(native, &reset_native/1)
-        Enum.each(fallback, &:cover.reset/1)
+        Enum.each(Enum.uniq(fallback ++ imported(recording)), &:cover.reset/1)
     end
   end
 
@@ -75,8 +75,10 @@ defmodule SelectiveExunit.Recorder do
 
   defp record(%{prefix: prefix, sources: sources, ignore: ignore} = recording, test_case) do
     called =
-      Enum.filter(recording.native, &native_called?/1) ++
-        Enum.filter(recording.fallback, &cover_called?/1)
+      Enum.uniq(
+        Enum.filter(recording.native, &native_called?/1) ++
+          Enum.filter(Enum.uniq(recording.fallback ++ imported(recording)), &cover_called?/1)
+      )
 
     files =
       [prefix <> test_case.file_path | Enum.map(called, &sources[&1])]
@@ -146,6 +148,13 @@ defmodule SelectiveExunit.Recorder do
       end
   end
 
+  defp imported(%{sources: sources}) do
+    case :cover.imported_modules() do
+      modules when is_list(modules) -> Enum.filter(modules, &Map.has_key?(sources, &1))
+      _ -> []
+    end
+  end
+
   defp reset_native(module) do
     :code.reset_coverage(module)
   rescue
@@ -159,14 +168,10 @@ defmodule SelectiveExunit.Recorder do
   end
 
   defp cover_called?(module) do
-    called =
-      case :cover.analyse(module, :calls, :module) do
-        {:ok, {^module, count}} -> count > 0
-        {:error, _} -> false
-      end
-
-    :cover.reset(module)
-    called
+    case :cover.analyse(module, :calls, :module) do
+      {:ok, {^module, count}} -> count > 0
+      {:error, _} -> false
+    end
   end
 
   defp source(module, prefix) do

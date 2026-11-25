@@ -3,6 +3,8 @@ defmodule SelectiveExunit.RecorderTest do
 
   @moduletag :capture_log
 
+  import ExUnit.CaptureIO
+
   alias SelectiveExunit.Recorder
   alias SelectiveExunit.State
 
@@ -99,6 +101,49 @@ defmodule SelectiveExunit.RecorderTest do
     assert native == Enum.map(workloads(), fn {_name, _run, files} -> MapSet.new(files) end)
   end
 
+  test "counts moved into cover's table mid-test are recorded", %{dir: dir} do
+    workloads = export_workloads(dir)
+    expected = Enum.map(workloads, fn {_name, _run, files} -> MapSet.new(files) end)
+
+    capture_io(fn ->
+      assert record_sequence(dir, :recorder, fn -> :ok end, workloads) == expected
+      assert record_sequence(dir, :oracle, fn -> :ok end, workloads) == expected
+    end)
+  end
+
+  test "imported counts do not carry into the next test", %{dir: dir} do
+    workloads = Enum.slice(export_workloads(dir), 1, 2) ++ Enum.slice(export_workloads(dir), 5, 2)
+
+    capture_io(fn ->
+      assert record_sequence(dir, :recorder, fn -> :ok end, workloads) == [
+               MapSet.new([@test_file, @calc]),
+               MapSet.new([@test_file]),
+               MapSet.new([@test_file, @calc, @text]),
+               MapSet.new([@test_file])
+             ]
+    end)
+  end
+
+  test "counts imported before recording are not attributed to the first test", %{dir: dir} do
+    import_before_recording = fn ->
+      file = to_charlist(Path.join(dir, "before.coverdata"))
+      call(Internal.Calc, :add, [1, 2])
+      :ok = :cover.export(file, Internal.Calc)
+
+      {:ok, Internal.Calc} =
+        :cover.compile_beam(to_charlist(Path.join(dir, "Elixir.Internal.Calc.beam")))
+
+      :ok = :cover.import(file)
+    end
+
+    capture_io(fn ->
+      assert record_sequence(dir, :recorder, import_before_recording, [
+               {"first", fn -> :ok end, []},
+               {"second", fn -> call(Internal.Calc, :add, [1, 2]) end, []}
+             ]) == [MapSet.new([@test_file]), MapSet.new([@test_file, @calc])]
+    end)
+  end
+
   test "the cover fallback records the same files when no module reads natively", %{dir: dir} do
     force_fallback = fn ->
       State.update(:recording, &%{&1 | native: [], fallback: &1.native ++ &1.fallback})
@@ -132,15 +177,49 @@ defmodule SelectiveExunit.RecorderTest do
     assert Enum.at(native, 1) == MapSet.new([@test_file, @calc, @text, @injected])
   end
 
+  defp export_workloads(dir) do
+    beam = to_charlist(Path.join(dir, "Elixir.Internal.Calc.beam"))
+
+    reimport = fn ->
+      file = Path.join(dir, "calc-#{System.unique_integer([:positive])}.coverdata")
+      :ok = :cover.export(to_charlist(file), Internal.Calc)
+      {:ok, Internal.Calc} = :cover.compile_beam(beam)
+      :ok = :cover.import(to_charlist(file))
+    end
+
+    [
+      {"none first", fn -> :ok end, [@test_file]},
+      {"call then export, recompile and import",
+       fn ->
+         call(Internal.Calc, :add, [1, 2])
+         reimport.()
+       end, [@test_file, @calc]},
+      {"none after import", fn -> :ok end, [@test_file]},
+      {"export, recompile and import without a call", reimport, [@test_file]},
+      {"call after import",
+       fn ->
+         reimport.()
+         call(Internal.Calc, :add, [1, 2])
+       end, [@test_file, @calc]},
+      {"import of one module, call of another",
+       fn ->
+         call(Internal.Calc, :add, [1, 2])
+         reimport.()
+         call(Internal.Text, :shout, ["hi"])
+       end, [@test_file, @calc, @text]},
+      {"none last", fn -> :ok end, [@test_file]}
+    ]
+  end
+
   defp call(module, function, args \\ []), do: apply(module, function, args)
 
-  defp record_sequence(dir, mode, prepare \\ fn -> :ok end) do
+  defp record_sequence(dir, mode, prepare \\ fn -> :ok end, workloads \\ workloads()) do
     :cover.stop()
     State.put(:recording, nil)
     :ok = Recorder.start("", dir)
     prepare.()
 
-    for {{_name, run, _files}, index} <- Enum.with_index(workloads()) do
+    for {{_name, run, _files}, index} <- Enum.with_index(workloads) do
       test_case = %{id: "test-#{index}", file_path: @test_file}
 
       case mode do
