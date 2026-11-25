@@ -6,10 +6,10 @@ defmodule SelectiveExunit.Recorder do
     Code.ensure_loaded?(:cover) and Process.whereis(:cover_server) == nil
   end
 
-  def start(prefix) do
+  def start(prefix, compile_path \\ Mix.Project.compile_path()) do
     with {:ok, server} <- :cover.start(),
          results when is_list(results) <-
-           :cover.compile_beam_directory(to_charlist(Mix.Project.compile_path())),
+           :cover.compile_beam_directory(to_charlist(compile_path)),
          [] <- for({:error, reason} <- results, do: reason) do
       sources =
         for {:ok, module} <- results, path <- List.wrap(source(module, prefix)), into: %{} do
@@ -21,10 +21,14 @@ defmodule SelectiveExunit.Recorder do
         |> String.split(",", trim: true)
         |> Enum.map(&String.trim/1)
 
+      {native, fallback} = sources |> Map.keys() |> Enum.split_with(&native?/1)
+
       State.put(:recording, %{
         server: server,
         prefix: prefix,
         sources: sources,
+        native: native,
+        fallback: fallback,
         ignore: ignore,
         deps: %{}
       })
@@ -35,7 +39,14 @@ defmodule SelectiveExunit.Recorder do
   end
 
   def reset do
-    if State.get(:recording), do: :ok = :cover.reset()
+    case State.get(:recording) do
+      nil ->
+        :ok
+
+      %{native: native, fallback: fallback} = recording ->
+        Enum.each(native, &reset_native/1)
+        Enum.each(Enum.uniq(fallback ++ imported(recording)), &:cover.reset/1)
+    end
   end
 
   def collect(test_case, tests) do
@@ -62,17 +73,15 @@ defmodule SelectiveExunit.Recorder do
     end
   end
 
-  defp record(%{prefix: prefix, sources: sources, ignore: ignore}, test_case) do
-    {:result, calls, _} = :cover.analyse(:calls, :module)
+  defp record(%{prefix: prefix, sources: sources, ignore: ignore} = recording, test_case) do
+    called =
+      Enum.uniq(
+        Enum.filter(recording.native, &native_called?/1) ++
+          Enum.filter(Enum.uniq(recording.fallback ++ imported(recording)), &cover_called?/1)
+      )
 
     files =
-      for {module, count} <- calls,
-          count > 0,
-          Map.has_key?(sources, module),
-          do: sources[module]
-
-    files =
-      [prefix <> test_case.file_path | files]
+      [prefix <> test_case.file_path | Enum.map(called, &sources[&1])]
       |> Enum.reject(fn file -> Enum.any?(ignore, &String.starts_with?(file, &1)) end)
       |> MapSet.new()
 
@@ -127,6 +136,42 @@ defmodule SelectiveExunit.Recorder do
           do: %{"id" => id, "deps" => paths |> Enum.map(&index[&1]) |> Enum.sort()}
 
     %{"version" => 1, "files" => files, "tests" => tests}
+  end
+
+  defp native?(module) do
+    :code.coverage_support() and
+      try do
+        :code.get_coverage(:line, module)
+        true
+      rescue
+        ArgumentError -> false
+      end
+  end
+
+  defp imported(%{sources: sources}) do
+    case :cover.imported_modules() do
+      modules when is_list(modules) -> Enum.filter(modules, &Map.has_key?(sources, &1))
+      _ -> []
+    end
+  end
+
+  defp reset_native(module) do
+    :code.reset_coverage(module)
+  rescue
+    ArgumentError -> :cover.reset(module)
+  end
+
+  defp native_called?(module) do
+    Enum.any?(:code.get_coverage(:line, module), fn {_line, count} -> count > 0 end)
+  rescue
+    ArgumentError -> cover_called?(module)
+  end
+
+  defp cover_called?(module) do
+    case :cover.analyse(module, :calls, :module) do
+      {:ok, {^module, count}} -> count > 0
+      {:error, _} -> false
+    end
   end
 
   defp source(module, prefix) do
