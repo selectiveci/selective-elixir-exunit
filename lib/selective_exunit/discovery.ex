@@ -167,7 +167,7 @@ defmodule SelectiveExunit.Discovery do
   end
 
   defp default_elixirc_options do
-    if Version.match?(System.version(), ">= 1.18.0") do
+    if :infer_signatures in Code.available_compiler_options() do
       [docs: false, debug_info: false, infer_signatures: false]
     else
       [docs: false, debug_info: false]
